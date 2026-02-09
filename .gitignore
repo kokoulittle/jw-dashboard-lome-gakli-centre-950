@@ -36,10 +36,6 @@ Thumbs.db
 PDF EXPORTS/
 *.pdf
 
-# =========================
-# Attendance data (generated files)
-# =========================
-Random_Attendant_Crew_Schedule.csv
 
 # =========================
 # Temporary / runtime files
