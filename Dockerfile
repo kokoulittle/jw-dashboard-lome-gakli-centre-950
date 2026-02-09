@@ -1,10 +1,14 @@
-# 1️⃣ Image Python officielle (légère et stable)
+# 1️ Image Python officielle
 FROM python:3.11-slim
 
-# 2️⃣ Dossier de travail dans le conteneur
+# 2️ Variables d’environnement recommandées
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# 3️ Dossier de travail
 WORKDIR /app
 
-# 3️⃣ Dépendances système nécessaires pour Plotly/Kaleido (export PDF)
+# 4️ Dépendances système nécessaires à Plotly/Kaleido
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libnss3 \
@@ -26,25 +30,20 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 📚 Source officielle Plotly – dépendances Kaleido
-# https://plotly.com/python/static-image-export/
-
-# 4️⃣ Copier les dépendances Python
+# 5️ Dépendances Python
 COPY requirements.txt .
-
-# 5️⃣ Installer les dépendances Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6️⃣ Copier le code et les assets
+# 6️ Copier le code et les ressources
 COPY dashboard.py .
-COPY JW_Logo.png .
-COPY Random_Attendant_Crew_Schedule.csv .
+COPY assets/ ./assets/
+COPY data/ ./data/
 
-# 7️⃣ Créer le dossier d’export PDF
-RUN mkdir -p "PDF EXPORTS"
+# 7️ Dossier d’export PDF
+RUN mkdir -p exports/pdf
 
-# 8️⃣ Exposer le port Dash
+# 8️ Port Dash
 EXPOSE 8050
 
-# 9️⃣ Lancer l’application
+# 9️ Lancer l’application
 CMD ["python", "dashboard.py"]
