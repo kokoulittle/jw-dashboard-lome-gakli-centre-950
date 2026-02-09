@@ -8,6 +8,8 @@ import dash  # type: ignore
 from dash import dcc, html, Input, Output, State  # type: ignore
 import plotly.graph_objects as go  # type: ignore
 import plotly.io as pio  # type: ignore
+from dash import no_update # type: ignore
+from dash.dcc import send_file # type: ignore
 
 # =========================
 # DATA
@@ -114,7 +116,7 @@ app.layout = html.Div(
                 ),
                 html.Br(),
                 html.Button("Exporter en PDF", id="export-pdf"),
-                html.Div(id="export-status")
+                dcc.Download(id="download-pdf")
             ]
         ),
 
@@ -182,7 +184,7 @@ def update_dashboard(selected_week):
 
 
 @app.callback(
-    Output("export-status", "children"),
+    Output("download-pdf", "data"),
     Input("export-pdf", "n_clicks"),
     State("week-selector", "value"),
     prevent_initial_call=True
@@ -207,21 +209,18 @@ def export_pdf(n, selected_week):
             font=dict(color="white", size=10),
             align="left"
         ),
-        cells={
-            "values": [
-                [
-                    format_date(d, "medium", locale="fr_FR")
-                    for d in data["Date"]
-                ],
+        cells=dict(
+            values=[
+                [format_date(d, "medium", locale="fr_FR") for d in data["Date"]],
                 data["Entrée"],
                 data["Porte"],
                 data["Intérieur"],
                 data["Comptage"]
             ],
-            "font": dict(color="#4F6FA0", size=9),
-            "fill_color": "#E9EEF7",
-            "align": "left"
-        }
+            font=dict(color="#4F6FA0", size=9),
+            fill_color="#E9EEF7",
+            align="left"
+        )
     ))
 
     fig.add_layout_image(
@@ -233,7 +232,7 @@ def export_pdf(n, selected_week):
     )
 
     fig.add_annotation(
-        text="<b>Assemblée locale : Lomé Gakli Centre (950)",
+        text="<b>Assemblée locale : Lomé Gakli Centre (950)</b>",
         xref="paper", yref="paper",
         x=0.5, y=1.18,
         showarrow=False,
@@ -244,7 +243,7 @@ def export_pdf(n, selected_week):
         text=(
             "<b>Préposés à l’accueil pour la semaine "
             f"du {format_date(monday, 'medium', locale='fr_FR')} "
-            f"au {format_date(sunday, 'medium', locale='fr_FR')}"
+            f"au {format_date(sunday, 'medium', locale='fr_FR')}</b>"
         ),
         xref="paper", yref="paper",
         x=0.5, y=1.08,
@@ -257,13 +256,12 @@ def export_pdf(n, selected_week):
         margin=dict(t=160, l=30, r=30, b=30)
     )
 
-    filename = os.path.join(
-        PDF_EXPORT_DIR,
-        f"preposes_accueil_semaine_{year}_W{week}.pdf"
-    )
-    pio.write_image(fig, filename, format="pdf")
+    filename = f"preposes_accueil_semaine_{year}_W{week}.pdf"
+    filepath = os.path.join("exports", filename)
 
-    return f"PDF généré : {filename}"
+    pio.write_image(fig, filepath, format="pdf")
+
+    return send_file(filepath)
 
 # =========================
 # RUN
