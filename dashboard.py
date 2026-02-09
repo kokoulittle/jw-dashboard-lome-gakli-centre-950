@@ -33,7 +33,7 @@ def encode_image(path):
         return base64.b64encode(f.read()).decode("utf-8")
 
 
-JW_LOGO = encode_image("JW_Logo.png")
+JW_LOGO = encode_image("assets/JW_Logo.png")
 
 PDF_EXPORT_DIR = "exports"
 os.makedirs(PDF_EXPORT_DIR, exist_ok=True)
