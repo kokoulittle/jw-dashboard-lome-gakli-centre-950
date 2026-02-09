@@ -33,7 +33,7 @@ Thumbs.db
 # =========================
 # PDF exports (generated files)
 # =========================
-PDF EXPORTS/
+exports/
 *.pdf
 
 
