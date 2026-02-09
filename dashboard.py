@@ -12,7 +12,7 @@ import plotly.io as pio  # type: ignore
 # =========================
 # DATA
 # =========================
-df = pd.read_csv("Random_Attendant_Crew_Schedule.csv")
+df = pd.read_csv("jw-dashboard-lome-gakli-centre-950/data/Random_Attendant_Crew_Schedule_2026.csv")
 df["Date"] = pd.to_datetime(df["Date"])
 df["ISO_Year"] = df["Date"].dt.isocalendar().year
 df["ISO_Week"] = df["Date"].dt.isocalendar().week
