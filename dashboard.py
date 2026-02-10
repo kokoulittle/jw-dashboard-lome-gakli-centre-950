@@ -259,9 +259,16 @@ def export_pdf(n, selected_week):
     filename = f"preposes_accueil_semaine_{year}_W{week}.pdf"
     filepath = os.path.join("exports", filename)
 
+    # Write PDF to disk using Kaleido
     pio.write_image(fig, filepath, format="pdf")
 
-    return send_file(filepath)
+    # --- Diagnostic---
+    print("PDF generated: ", os.path.exists(filepath))
+    print("PDF size:", os.path.getsize(PDF_PATH), "bytes")
+
+    
+    # Send file to browser
+    return dcc.send_file(filepath)
 
 # =========================
 # RUN
@@ -269,4 +276,7 @@ def export_pdf(n, selected_week):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8050)
+    app.run(host="0.0.0.0", 
+            port=8050,
+            debug=False
+           )
