@@ -4,4 +4,3 @@ plotly
 openpyxl
 babel
 kaleido
-gunicorn>=21.2.0
