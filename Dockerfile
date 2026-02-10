@@ -1,14 +1,15 @@
-# 1️ Image Python officielle
+# 1️⃣ Image Python officielle
 FROM python:3.11-slim
 
-# 2️ Variables d’environnement recommandées
+# 2️⃣ Variables d’environnement recommandées
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PORT=8050
 
-# 3️ Dossier de travail
+# 3️⃣ Dossier de travail
 WORKDIR /app
 
-# 4️ Dépendances système nécessaires à Plotly/Kaleido
+# 4️⃣ Dépendances système nécessaires à Plotly/Kaleido
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libnss3 \
@@ -30,20 +31,24 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 5️ Dépendances Python
+# 5️⃣ Dépendances Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6️ Copier le code et les ressources
+# 6️⃣ Copier le code et les ressources
 COPY dashboard.py .
 COPY assets/ ./assets/
 COPY data/ ./data/
 
-# 7️ Dossier d’export PDF
-RUN mkdir -p exports/pdf
+# 7️⃣ Dossier d’export PDF (persistant + permissions)
+RUN mkdir -p /app/exports/pdf \
+    && chmod -R 777 /app/exports
 
-# 8️ Port Dash
+# 8️⃣ Port Dash (Railway lira $PORT)
 EXPOSE 8050
 
-# 9️ Lancer l’application
-CMD ["python", "dashboard.py"]
+# 9️⃣ Lancer l’application avec un serveur production
+CMD gunicorn dashboard:server \
+    --bind 0.0.0.0:$PORT \
+    --workers 2 \
+    --timeout 120
