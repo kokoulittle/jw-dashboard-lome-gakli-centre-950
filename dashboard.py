@@ -1,6 +1,7 @@
 import os
 import base64
 from datetime import date
+
 import pandas as pd  # type: ignore
 from babel.dates import format_date
 
@@ -8,153 +9,79 @@ import dash  # type: ignore
 from dash import dcc, html, Input, Output, State  # type: ignore
 import plotly.graph_objects as go  # type: ignore
 import plotly.io as pio  # type: ignore
-from dash import no_update # type: ignore
-from dash.dcc import send_file # type: ignore
 
-# =========================
-# DATA
-# =========================
-df = pd.read_csv("data/Random_Attendant_Crew_Schedule_2026.csv")
+from flask import send_from_directory
+
+# ======================================================
+# CONSTANTS & PATHS (ABSOLUTE – SAFE IN DOCKER)
+# ======================================================
+
+BASE_DIR = os.getcwd()
+
+DATA_DIR = os.path.join(BASE_DIR, "data")
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+EXPORT_DIR = os.path.join(BASE_DIR, "exports", "pdf")
+
+os.makedirs(EXPORT_DIR, exist_ok=True)
+
+DATA_FILE = os.path.join(DATA_DIR, "Random_Attendant_Crew_Schedule_2026.csv")
+LOGO_FILE = os.path.join(ASSETS_DIR, "JW_Logo.png")
+
+# ======================================================
+# DATA LOADING
+# ======================================================
+
+df = pd.read_csv(DATA_FILE)
 df["Date"] = pd.to_datetime(df["Date"])
 df["ISO_Year"] = df["Date"].dt.isocalendar().year
 df["ISO_Week"] = df["Date"].dt.isocalendar().week
 
-# =========================
+# ======================================================
 # HELPERS
-# =========================
+# ======================================================
 
-
-def week_date_range(year, week):
+def week_date_range(year: int, week: int):
     monday = date.fromisocalendar(year, week, 1)
     sunday = date.fromisocalendar(year, week, 7)
     return monday, sunday
 
 
-def encode_image(path):
+def encode_image(path: str) -> str:
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
 
-JW_LOGO = encode_image("assets/JW_Logo.png")
-
-PDF_EXPORT_DIR = "exports"
-os.makedirs(PDF_EXPORT_DIR, exist_ok=True)
-
-
-# =========================
-# WEEK OPTIONS (ASCENDING)
-# =========================
-week_options = (
-    df[["ISO_Year", "ISO_Week"]]
-    .drop_duplicates()
-    .sort_values(["ISO_Year", "ISO_Week"])
-)
-
-week_labels = []
-for _, r in week_options.iterrows():
-    y, w = int(r.ISO_Year), int(r.ISO_Week)
-    monday, sunday = week_date_range(y, w)
-    label = (
-        f"Semaine {w} "
-        f"({format_date(monday, 'short', locale='fr_FR')} – "
-        f"{format_date(sunday, 'short', locale='fr_FR')})"
+def build_week_options(dataframe: pd.DataFrame):
+    weeks = (
+        dataframe[["ISO_Year", "ISO_Week"]]
+        .drop_duplicates()
+        .sort_values(["ISO_Year", "ISO_Week"])
     )
-    week_labels.append({
-        "label": label,
-        "value": f"{y}-W{w}"
-    })
 
-today = date.today()
-current_week_value = f"{today.isocalendar().year}-W{today.isocalendar().week}"
-
-# =========================
-# APP
-# =========================
-app = dash.Dash(__name__)
-server = app.server
-
-app.layout = html.Div(
-    style={"fontFamily": "Arial", "backgroundColor": "#F4F6F9"},
-    children=[
-
-        # =========================
-        # HEADER
-        # =========================
-        html.Div(
-            style={
-                "backgroundColor": "#4F6FA0",
-                "color": "white",
-                "padding": "20px",
-                "display": "flex",
-                "alignItems": "center"
-            },
-            children=[
-                html.Img(
-                    src=f"data:image/png;base64,{JW_LOGO}",
-                    style={"height": "70px", "marginRight": "20px"}
-                ),
-                html.Div([
-                    html.H2(
-                        id="dashboard-title",
-                        style={"margin": "0"}
-                    )
-                ])
-            ]
-        ),
-
-        # =========================
-        # CONTROLS
-        # =========================
-        html.Div(
-            style={"padding": "20px"},
-            children=[
-                dcc.Dropdown(
-                    id="week-selector",
-                    options=week_labels,  # type: ignore
-                    value=current_week_value,
-                    clearable=False
-                ),
-                html.Br(),
-                html.Button("Exporter en PDF", id="export-pdf"),
-                dcc.Download(id="download-pdf")
-            ]
-        ),
-
-        # =========================
-        # TABLE
-        # =========================
-        dcc.Graph(id="week-table")
-    ]
-)
-
-# =========================
-# CALLBACK – TABLE + TITLE
-# =========================
+    options = []
+    for _, r in weeks.iterrows():
+        y, w = int(r.ISO_Year), int(r.ISO_Week)
+        monday, sunday = week_date_range(y, w)
+        options.append({
+            "label": (
+                f"Semaine {w} "
+                f"({format_date(monday, 'short', locale='fr_FR')} – "
+                f"{format_date(sunday, 'short', locale='fr_FR')})"
+            ),
+            "value": f"{y}-W{w}"
+        })
+    return options
 
 
-@app.callback(
-    Output("week-table", "figure"),
-    Output("dashboard-title", "children"),
-    Input("week-selector", "value")
-)
-def update_dashboard(selected_week):
-    year, week = selected_week.split("-W")
-    year, week = int(year), int(week)
-
-    data = df[
-        (df["ISO_Year"] == year) &
-        (df["ISO_Week"] == week)
+def filter_week(dataframe: pd.DataFrame, year: int, week: int):
+    return dataframe[
+        (dataframe["ISO_Year"] == year) &
+        (dataframe["ISO_Week"] == week)
     ].sort_values("Date")
 
-    monday, sunday = week_date_range(year, week)
 
-    title = (
-        f"Tableau de Bord des Préposés à l’Accueil — "
-        f"Semaine du {format_date(monday, 'long', locale='fr_FR')} "
-        f"au {format_date(sunday, 'long', locale='fr_FR')}"
-    )
-
-    fig = go.Figure(go.Table(
+def build_table_figure(data: pd.DataFrame):
+    return go.Figure(go.Table(
         header=dict(
             values=["Date", "Entrée", "Porte", "Intérieur", "Comptage"],
             fill_color="#4F6FA0",
@@ -174,54 +101,121 @@ def update_dashboard(selected_week):
         )
     ))
 
+# ======================================================
+# APP INITIALIZATION
+# ======================================================
+
+JW_LOGO = encode_image(LOGO_FILE)
+
+app = dash.Dash(__name__)
+server = app.server
+
+# ======================================================
+# FLASK ROUTE – PDF DOWNLOAD (PRODUCTION SAFE)
+# ======================================================
+
+@server.route("/download/<path:filename>")
+def download_pdf(filename):
+    return send_from_directory(
+        EXPORT_DIR,
+        filename,
+        as_attachment=True,
+        mimetype="application/pdf"
+    )
+
+# ======================================================
+# LAYOUT
+# ======================================================
+
+today = date.today()
+current_week_value = f"{today.isocalendar().year}-W{today.isocalendar().week}"
+
+app.layout = html.Div(
+    style={"fontFamily": "Arial", "backgroundColor": "#F4F6F9"},
+    children=[
+
+        # HEADER
+        html.Div(
+            style={
+                "backgroundColor": "#4F6FA0",
+                "color": "white",
+                "padding": "20px",
+                "display": "flex",
+                "alignItems": "center"
+            },
+            children=[
+                html.Img(
+                    src=f"data:image/png;base64,{JW_LOGO}",
+                    style={"height": "70px", "marginRight": "20px"}
+                ),
+                html.H2(id="dashboard-title", style={"margin": 0})
+            ]
+        ),
+
+        # CONTROLS
+        html.Div(
+            style={"padding": "20px"},
+            children=[
+                dcc.Dropdown(
+                    id="week-selector",
+                    options=build_week_options(df),
+                    value=current_week_value,
+                    clearable=False
+                ),
+                html.Br(),
+                html.Button("Exporter en PDF", id="export-pdf"),
+                html.Div(id="download-link", style={"marginTop": "15px"})
+            ]
+        ),
+
+        # TABLE
+        dcc.Graph(id="week-table")
+    ]
+)
+
+# ======================================================
+# CALLBACK – TABLE + TITLE
+# ======================================================
+
+@app.callback(
+    Output("week-table", "figure"),
+    Output("dashboard-title", "children"),
+    Input("week-selector", "value")
+)
+def update_dashboard(selected_week):
+    year, week = map(int, selected_week.replace("W", "").split("-"))
+    data = filter_week(df, year, week)
+
+    monday, sunday = week_date_range(year, week)
+
+    title = (
+        f"Tableau de Bord des Préposés à l’Accueil — "
+        f"Semaine du {format_date(monday, 'long', locale='fr_FR')} "
+        f"au {format_date(sunday, 'long', locale='fr_FR')}"
+    )
+
+    fig = build_table_figure(data)
     fig.update_layout(margin=dict(t=20, b=20))
 
     return fig, title
 
-# =========================
+# ======================================================
 # CALLBACK – PDF EXPORT
-# =========================
-
+# ======================================================
 
 @app.callback(
-    Output("download-pdf", "data"),
+    Output("download-link", "children"),
     Input("export-pdf", "n_clicks"),
     State("week-selector", "value"),
     prevent_initial_call=True
 )
-def export_pdf(n, selected_week):
+def export_pdf(_, selected_week):
     year, week = map(int, selected_week.replace("W", "").split("-"))
-
-    data = df[
-        (df["ISO_Year"] == year) &
-        (df["ISO_Week"] == week)
-    ].sort_values("Date")
+    data = filter_week(df, year, week)
 
     monday, sunday = week_date_range(year, week)
 
-    fig = go.Figure()
-
-    fig.add_trace(go.Table(
-        header=dict(
-            values=["<b>Date</b>", "<b>Entrée</b>", "<b>Porte</b>",
-                    "<b>Intérieur</b>", "<b>Comptage</b>"],
-            fill_color="#4F6FA0",
-            font=dict(color="white", size=10),
-            align="left"
-        ),
-        cells=dict(
-            values=[
-                [format_date(d, "medium", locale="fr_FR") for d in data["Date"]],
-                data["Entrée"],
-                data["Porte"],
-                data["Intérieur"],
-                data["Comptage"]
-            ],
-            font=dict(color="#4F6FA0", size=9),
-            fill_color="#E9EEF7",
-            align="left"
-        )
-    ))
+    fig = build_table_figure(data)
 
     fig.add_layout_image(
         source=f"data:image/png;base64,{JW_LOGO}",
@@ -257,26 +251,19 @@ def export_pdf(n, selected_week):
     )
 
     filename = f"preposes_accueil_semaine_{year}_W{week}.pdf"
-    filepath = os.path.join("exports", filename)
+    filepath = os.path.join(EXPORT_DIR, filename)
 
-    # Write PDF to disk using Kaleido
     pio.write_image(fig, filepath, format="pdf")
 
-    # --- Diagnostic---
-    print("PDF generated: ", os.path.exists(filepath))
-    print("PDF size:", os.path.getsize(PDF_PATH), "bytes")
+    return html.A(
+        "⬇ Télécharger le PDF",
+        href=f"/download/{filename}",
+        target="_blank"
+    )
 
-    
-    # Send file to browser
-    return dcc.send_file(filepath)
-
-# =========================
+# ======================================================
 # RUN
-# =========================
-
+# ======================================================
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", 
-            port=8050,
-            debug=False
-           )
+    app.run(host="0.0.0.0", port=8050, debug=False)
