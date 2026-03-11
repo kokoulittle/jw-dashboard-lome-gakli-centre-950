@@ -152,18 +152,16 @@ async function loadCsv() {
     Papa.parse('data/Random_Attendant_Crew_Schedule_2026.csv', {
       download: true,
       header: true,
-      skipEmptyLines: 'greedy',
       complete: resolve,
       error: reject,
     });
   });
 
-  const fatalErrors = (result.errors || []).filter((err) => err?.code !== 'TooFewFields');
-  if (fatalErrors.length) {
-    throw new Error(`Erreurs CSV détectées (${fatalErrors.length}).`);
+  if (result.errors?.length) {
+    throw new Error(`Erreurs CSV détectées (${result.errors.length}).`);
   }
 
-  return (result.data || []).filter((row) => row?.Date && /^\d{4}-\d{2}-\d{2}$/.test(row.Date));
+  return result.data.filter((row) => row.Date);
 }
 
 async function init() {
@@ -173,10 +171,6 @@ async function init() {
 
     for (const record of APP_STATE.records) {
       const parsed = parseDate(record.Date);
-      if (Number.isNaN(parsed.getTime())) {
-        continue;
-      }
-
       const { isoYear, isoWeek } = getIsoWeekYear(parsed);
       const key = `${isoYear}-W${isoWeek}`;
       const bucket = APP_STATE.weekMap.get(key) || [];
