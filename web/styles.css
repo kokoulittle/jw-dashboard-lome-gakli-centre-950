@@ -1,0 +1,65 @@
+:root {
+  --brand: #4f6fa0;
+  --bg: #f4f6f9;
+  --danger: #a83b3b;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+}
+
+.header {
+  background: var(--brand);
+  color: #fff;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.logo {
+  height: 70px;
+}
+
+.main-content {
+  padding: 20px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+#week-selector,
+#export-pdf {
+  padding: 8px 10px;
+}
+
+#export-pdf {
+  border: none;
+  background: var(--brand);
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#export-pdf:disabled,
+#week-selector:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+#status {
+  color: #2b2b2b;
+  font-size: 0.95rem;
+}
+
+#status.error {
+  color: var(--danger);
+  font-weight: 600;
+}
