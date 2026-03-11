@@ -147,21 +147,45 @@ function initEvents() {
   });
 }
 
-async function loadCsv() {
-  const result = await new Promise((resolve, reject) => {
-    Papa.parse('data/Random_Attendant_Crew_Schedule_2026.csv', {
-      download: true,
-      header: true,
-      complete: resolve,
-      error: reject,
-    });
-  });
+function normalizeCsvRows(rows) {
+  return (rows || []).map((rawRow) => {
+    const row = rawRow || {};
+    const dateValue = row.Date ?? row['\ufeffDate'] ?? row[' date'] ?? row['Date '] ?? '';
 
-  if (result.errors?.length) {
-    throw new Error(`Erreurs CSV détectées (${result.errors.length}).`);
+    return {
+      Date: String(dateValue).trim(),
+      'Entrée': row['Entrée'] || '',
+      Porte: row.Porte || '',
+      'Intérieur': row['Intérieur'] || '',
+      Comptage: row.Comptage || '',
+    };
+  });
+}
+
+async function loadCsv() {
+  const csvUrl = new URL('data/Random_Attendant_Crew_Schedule_2026.csv', window.location.href);
+  const response = await fetch(csvUrl.toString(), { cache: 'no-store' });
+
+  if (!response.ok) {
+    throw new Error(`Fichier CSV inaccessible (${response.status}).`);
   }
 
-  return result.data.filter((row) => row.Date);
+  const csvText = await response.text();
+  if (csvText.trim().startsWith('<!DOCTYPE') || csvText.trim().startsWith('<html')) {
+    throw new Error('La réponse reçue n’est pas un CSV valide.');
+  }
+
+  const result = Papa.parse(csvText, {
+    header: true,
+    skipEmptyLines: 'greedy',
+  });
+
+  const fatalErrors = (result.errors || []).filter((err) => err?.code !== 'TooFewFields');
+  if (fatalErrors.length) {
+    throw new Error(`Erreurs CSV détectées (${fatalErrors.length}).`);
+  }
+
+  return normalizeCsvRows(result.data).filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.Date));
 }
 
 async function init() {
@@ -171,6 +195,10 @@ async function init() {
 
     for (const record of APP_STATE.records) {
       const parsed = parseDate(record.Date);
+      if (Number.isNaN(parsed.getTime())) {
+        continue;
+      }
+
       const { isoYear, isoWeek } = getIsoWeekYear(parsed);
       const key = `${isoYear}-W${isoWeek}`;
       const bucket = APP_STATE.weekMap.get(key) || [];
